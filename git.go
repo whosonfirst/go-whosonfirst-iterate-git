@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/whosonfirst/go-whosonfirst-iterate/emitter"
 	"github.com/whosonfirst/go-whosonfirst-iterate/filters"
-	"github.com/whosonfirst/go-whosonfirst-iterate/ioutil"
+	"github.com/whosonfirst/go-ioutil"
 	gogit "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-git.v4/storage/memory"
