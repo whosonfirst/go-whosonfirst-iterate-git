@@ -6,8 +6,8 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/whosonfirst/go-ioutil"
-	"github.com/whosonfirst/go-whosonfirst-iterate/emitter"
-	"github.com/whosonfirst/go-whosonfirst-iterate/filters"
+	"github.com/whosonfirst/go-whosonfirst-iterate/v2/emitter"
+	"github.com/whosonfirst/go-whosonfirst-iterate/v2/filters"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -150,8 +150,7 @@ func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallb
 			}
 		}
 
-		ctx := emitter.AssignPathContext(ctx, f.Name)
-		return index_cb(ctx, fh)
+		return index_cb(ctx, f.Name, fh)
 	})
 
 	return nil
