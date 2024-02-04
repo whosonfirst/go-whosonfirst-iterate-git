@@ -3,9 +3,10 @@ package git
 import (
 	"context"
 	"fmt"
-	"github.com/whosonfirst/go-whosonfirst-iterate/v2/iterator"
 	"io"
 	"testing"
+
+	"github.com/whosonfirst/go-whosonfirst-iterate/v2/iterator"
 )
 
 func TestGitIterator(t *testing.T) {
