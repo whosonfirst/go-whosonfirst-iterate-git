@@ -5,7 +5,7 @@ go 1.22
 require (
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/whosonfirst/go-ioutil v1.0.2
-	github.com/whosonfirst/go-whosonfirst-iterate/v2 v2.3.4
+	github.com/whosonfirst/go-whosonfirst-iterate/v2 v2.4.0
 )
 
 require (

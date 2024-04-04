@@ -81,8 +81,8 @@ github.com/whosonfirst/go-ioutil v1.0.2 h1:+GJPfa42OFn5A+5yJSc5jQTQIkNV3/MhYyg4p
 github.com/whosonfirst/go-ioutil v1.0.2/go.mod h1:2dS1vWdAIkiHDvDF8fYyjv6k2NISmwaIjJJeEDBEdvg=
 github.com/whosonfirst/go-whosonfirst-crawl v0.2.2 h1:7nwpNV/BFoPR0R7KMMy1iiYAer7wlHJBUOiL+NLzIFs=
 github.com/whosonfirst/go-whosonfirst-crawl v0.2.2/go.mod h1:2GZkaK9jaOisWRnBQGWzmb7H55TUFl9y9F30lrk2hwk=
-github.com/whosonfirst/go-whosonfirst-iterate/v2 v2.3.4 h1:fEhr0jwqxXvG7Nb7id4Q26ucdBZD51TcFNIiU+VNopM=
-github.com/whosonfirst/go-whosonfirst-iterate/v2 v2.3.4/go.mod h1:kDIvHxJTo6XgFKmLHliGLxlqeeHhxuYtdeVZBAcP68g=
+github.com/whosonfirst/go-whosonfirst-iterate/v2 v2.4.0 h1:N6ZN0h9i/dMLdXoFVN61CqrBIvZhkv2GF7CXLSy4ZZw=
+github.com/whosonfirst/go-whosonfirst-iterate/v2 v2.4.0/go.mod h1:kDIvHxJTo6XgFKmLHliGLxlqeeHhxuYtdeVZBAcP68g=
 github.com/whosonfirst/walk v0.0.2 h1:fA0xskpnorC8OTvA1IKVOwQ12joCW6R5k2+/qd9lS7k=
 github.com/whosonfirst/walk v0.0.2/go.mod h1:HvRa/XX8jGtggvwAFMWMMuNy1M3+ZDqDX2hxiGR9b2o=
 github.com/xanzy/ssh-agent v0.3.3 h1:+/15pJfg/RsTxqYcX6fHqOXZwwMP+2VyYWJeWM2qQFM=
