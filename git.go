@@ -185,14 +185,14 @@ func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallb
 		case ".geojson":
 			// continue
 		default:
-			logger.Debug("Not a .geojson file, skipping.")
+			// logger.Debug("Not a .geojson file, skipping.")
 			return nil
 		}
 
 		_, exists := em.mu.LoadOrStore(f.Name, true)
 
 		if exists {
-			logger.Debug("Already indexed, skipping.")
+			logger.Info("Already indexed, skipping.")
 			return nil
 		}
 
