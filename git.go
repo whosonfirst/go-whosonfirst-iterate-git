@@ -3,10 +3,12 @@ package git
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -33,6 +35,7 @@ type GitEmitter struct {
 	filters filters.Filters
 	// The branch of the Git repository to clone.
 	branch string
+	mu     *sync.Map
 }
 
 // NewGitEmitter() returns a new `GitEmitter` instance configured by 'uri' in the form of:
@@ -53,8 +56,11 @@ func NewGitEmitter(ctx context.Context, uri string) (emitter.Emitter, error) {
 		return nil, fmt.Errorf("Failed to parse URI, %w", err)
 	}
 
+	mu := new(sync.Map)
+
 	em := &GitEmitter{
 		target: u.Path,
+		mu:     mu,
 	}
 
 	q := u.Query()
@@ -93,6 +99,10 @@ func NewGitEmitter(ctx context.Context, uri string) (emitter.Emitter, error) {
 // when `idx` was created) invokes 'index_cb'.
 func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallbackFunc, uri string) error {
 
+	logger := slog.Default()
+	logger = logger.With("uri", uri)
+	logger = logger.With("branch", em.branch)
+
 	var repo *gogit.Repository
 
 	opts := &gogit.CloneOptions{
@@ -104,12 +114,17 @@ func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallb
 		opts.ReferenceName = br
 	}
 
+	logger = logger.With("target", em.target)
+
 	switch em.target {
 	case "":
+
+		logger.Debug("Clone in to memory")
 
 		r, err := gogit.Clone(memory.NewStorage(), nil, opts)
 
 		if err != nil {
+			logger.Error("Failed to clone repo", "error", err)
 			return fmt.Errorf("Failed to clone repository, %w", err)
 		}
 
@@ -119,9 +134,12 @@ func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallb
 		fname := filepath.Base(uri)
 		path := filepath.Join(em.target, fname)
 
+		logger.Debug("Clone to path", "path", path)
+
 		r, err := gogit.PlainClone(path, false, opts)
 
 		if err != nil {
+			logger.Error("Failed to clone repo", "error", err)
 			return fmt.Errorf("Failed to clone repository, %w", err)
 		}
 
@@ -135,33 +153,53 @@ func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallb
 	ref, err := repo.Head()
 
 	if err != nil {
+		logger.Error("Failed to derive HEAD", "error", err)
 		return fmt.Errorf("Failed to derive head for repository, %w", err)
 	}
+
+	logger = logger.With("ref", ref.Hash())
 
 	commit, err := repo.CommitObject(ref.Hash())
 
 	if err != nil {
+		logger.Error("Failed to derive commit object", "error", err)
 		return fmt.Errorf("Failed to derive object for ref hash, %w", err)
 	}
 
 	tree, err := commit.Tree()
 
 	if err != nil {
+		logger.Error("Failed to derive commit tree", "error", err)
 		return fmt.Errorf("Failed to derive commit tree, %w", err)
 	}
 
 	err = tree.Files().ForEach(func(f *object.File) error {
 
+		logger := slog.Default()
+		logger = logger.With("uri", uri)
+		logger = logger.With("path", f.Name)
+		logger = logger.With("branch", em.branch)
+		logger = logger.With("ref", ref.Hash())
+
 		switch filepath.Ext(f.Name) {
 		case ".geojson":
 			// continue
 		default:
+			logger.Debug("Not a .geojson file, skipping.")
+			return nil
+		}
+
+		_, exists := em.mu.LoadOrStore(f.Name, true)
+
+		if exists {
+			slog.Debug("Already indexed, skipping.")
 			return nil
 		}
 
 		r, err := f.Reader()
 
 		if err != nil {
+			logger.Error("Failed to derive reader", "error", err)
 			return fmt.Errorf("Failed to derive reader for %s, %w", f.Name, err)
 		}
 
@@ -170,6 +208,7 @@ func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallb
 		fh, err := ioutil.NewReadSeekCloser(r)
 
 		if err != nil {
+			logger.Error("Failed to create ReadSeekCloser", "error", err)
 			return fmt.Errorf("Failed to create ReadSeekCloser for %s, %w", f.Name, err)
 		}
 
@@ -180,24 +219,29 @@ func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallb
 			ok, err := em.filters.Apply(ctx, fh)
 
 			if err != nil {
+				logger.Error("Failed to apply filters", "error", err)
 				return fmt.Errorf("Failed to apply query filters to %s, %w", f.Name, err)
 			}
 
 			if !ok {
+				logger.Debug("Skipping because filters not true")
 				return nil
 			}
 
 			_, err = fh.Seek(0, 0)
 
 			if err != nil {
+				logger.Error("Failed to rewind filehandler", "error", err)
 				return fmt.Errorf("Failed to reset filehandle for %s, %w", f.Name, err)
 			}
 		}
 
+		logger.Debug("Index record")
 		return index_cb(ctx, f.Name, fh)
 	})
 
 	if err != nil {
+		logger.Error("Failed to iterate tree", "error", err)
 		return fmt.Errorf("Failed to iterate through tree, %w", err)
 	}
 
