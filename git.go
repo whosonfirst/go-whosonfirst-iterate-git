@@ -192,7 +192,7 @@ func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallb
 		_, exists := em.mu.LoadOrStore(f.Name, true)
 
 		if exists {
-			slog.Debug("Already indexed, skipping.")
+			logger.Debug("Already indexed, skipping.")
 			return nil
 		}
 
@@ -236,8 +236,14 @@ func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallb
 			}
 		}
 
-		logger.Debug("Index record")
-		return index_cb(ctx, f.Name, fh)
+		err = index_cb(ctx, f.Name, fh)
+
+		if err != nil {
+			logger.Error("Failed to index record", "error", err)
+			return fmt.Errorf("Failed to index %s, %w", f.Name, err)
+		}
+
+		return nil
 	})
 
 	if err != nil {
