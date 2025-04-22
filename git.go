@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync"
+	"time"
 
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -35,7 +35,6 @@ type GitEmitter struct {
 	filters filters.Filters
 	// The branch of the Git repository to clone.
 	branch string
-	mu     *sync.Map
 }
 
 // NewGitEmitter() returns a new `GitEmitter` instance configured by 'uri' in the form of:
@@ -56,11 +55,8 @@ func NewGitEmitter(ctx context.Context, uri string) (emitter.Emitter, error) {
 		return nil, fmt.Errorf("Failed to parse URI, %w", err)
 	}
 
-	mu := new(sync.Map)
-
 	em := &GitEmitter{
 		target: u.Path,
-		mu:     mu,
 	}
 
 	q := u.Query()
@@ -116,6 +112,8 @@ func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallb
 
 	logger = logger.With("target", em.target)
 
+	t1 := time.Now()
+
 	switch em.target {
 	case "":
 
@@ -149,6 +147,8 @@ func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallb
 
 		repo = r
 	}
+
+	logger.Debug("Time to clone repo", "time", time.Since(t1))
 
 	ref, err := repo.Head()
 
@@ -189,13 +189,6 @@ func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallb
 			return nil
 		}
 
-		_, exists := em.mu.LoadOrStore(f.Name, true)
-
-		if exists {
-			logger.Info("Already indexed, skipping.")
-			return nil
-		}
-
 		r, err := f.Reader()
 
 		if err != nil {
@@ -224,7 +217,7 @@ func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallb
 			}
 
 			if !ok {
-				logger.Debug("Skipping because filters not true")
+				// logger.Debug("Skipping because filters not true")
 				return nil
 			}
 
