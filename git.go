@@ -35,6 +35,8 @@ type GitEmitter struct {
 	filters filters.Filters
 	// The branch of the Git repository to clone.
 	branch string
+	// Limit fetching to the specified number of commits.
+	depth int
 }
 
 // NewGitEmitter() returns a new `GitEmitter` instance configured by 'uri' in the form of:
@@ -47,6 +49,7 @@ type GitEmitter struct {
 // * `?include_mode=` A valid `aaronland/go-json-query` query mode string for testing inclusion rules.
 // * `?exclude_mode=` A valid `aaronland/go-json-query` query mode string for testing exclusion rules.
 // * `?preserve=` A boolean value indicating whether a Git repository (cloned to disk) should not be removed after processing.
+// * `?depth=` An integer value indicating the number of commits to fetch. Default is 1.
 func NewGitEmitter(ctx context.Context, uri string) (emitter.Emitter, error) {
 
 	u, err := url.Parse(uri)
@@ -57,6 +60,7 @@ func NewGitEmitter(ctx context.Context, uri string) (emitter.Emitter, error) {
 
 	em := &GitEmitter{
 		target: u.Path,
+		depth:  1,
 	}
 
 	q := u.Query()
@@ -88,6 +92,17 @@ func NewGitEmitter(ctx context.Context, uri string) (emitter.Emitter, error) {
 		em.branch = branch
 	}
 
+	if q.Has("depth") {
+
+		v, err := strconv.Atoi(q.Get("depth"))
+
+		if err != nil {
+			return nil, fmt.Errorf("Failed to parse '?depth=' parameter, %w", err)
+		}
+
+		em.depth = v
+	}
+
 	return em, nil
 }
 
@@ -101,13 +116,14 @@ func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallb
 
 	var repo *gogit.Repository
 
-	opts := &gogit.CloneOptions{
-		URL: uri,
+	clone_opts := &gogit.CloneOptions{
+		URL:   uri,
+		Depth: em.depth,
 	}
 
 	if em.branch != "" {
 		br := plumbing.NewBranchReferenceName(em.branch)
-		opts.ReferenceName = br
+		clone_opts.ReferenceName = br
 	}
 
 	logger = logger.With("target", em.target)
@@ -119,7 +135,7 @@ func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallb
 
 		logger.Debug("Clone in to memory")
 
-		r, err := gogit.Clone(memory.NewStorage(), nil, opts)
+		r, err := gogit.Clone(memory.NewStorage(), nil, clone_opts)
 
 		if err != nil {
 			logger.Error("Failed to clone repo", "error", err)
@@ -134,7 +150,7 @@ func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallb
 
 		logger.Debug("Clone to path", "path", path)
 
-		r, err := gogit.PlainClone(path, false, opts)
+		r, err := gogit.PlainClone(path, false, clone_opts)
 
 		if err != nil {
 			logger.Error("Failed to clone repo", "error", err)
