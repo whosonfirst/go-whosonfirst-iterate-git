@@ -155,8 +155,8 @@ func (it *GitIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 				if err != nil {
 					logger.Error("Failed to clone repo", "error", err)
 
-					if !yield(nil, err){
-					   return
+					if !yield(nil, err) {
+						return
 					}
 
 					continue
@@ -175,8 +175,8 @@ func (it *GitIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 				if err != nil {
 					logger.Error("Failed to clone repo", "error", err)
 
-					if !yield(nil, err){
-					   return
+					if !yield(nil, err) {
+						return
 					}
 
 					continue
@@ -196,11 +196,11 @@ func (it *GitIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 			if err != nil {
 				logger.Error("Failed to derive HEAD", "error", err)
 
-				if !yield(nil, err){
-				   return
-				  }
+				if !yield(nil, err) {
+					return
+				}
 
-				  continue
+				continue
 			}
 
 			logger = logger.With("ref", ref.Hash())
@@ -210,11 +210,11 @@ func (it *GitIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 			if err != nil {
 				logger.Error("Failed to derive commit object", "error", err)
 
-				if !yield(nil, err){
-				   return
-				   }
+				if !yield(nil, err) {
+					return
+				}
 
-				   continue
+				continue
 			}
 
 			tree, err := commit.Tree()
@@ -222,11 +222,11 @@ func (it *GitIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 			if err != nil {
 				logger.Error("Failed to derive commit tree", "error", err)
 
-				if !yield(nil, err){
-				   return
-				   }
+				if !yield(nil, err) {
+					return
+				}
 
-				   continue
+				continue
 			}
 
 			err = tree.Files().ForEach(func(f *object.File) error {
@@ -249,13 +249,13 @@ func (it *GitIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 
 				if err != nil {
 					logger.Error("Failed to derive reader", "error", err)
-					return fmt.Errorf("Failed to derive reader for %s, %w", f.Name, err)					
+					return fmt.Errorf("Failed to derive reader for %s, %w", f.Name, err)
 				}
 
 				rsc, err := ioutil.NewReadSeekCloser(r)
 
 				if err != nil {
-				   	r.Close()
+					r.Close()
 					logger.Error("Failed to create ReadSeekCloser", "error", err)
 					return fmt.Errorf("Failed to create ReadSeekCloser for %s, %w", f.Name, err)
 				}
@@ -265,7 +265,7 @@ func (it *GitIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 					ok, err := it.filters.Apply(ctx, rsc)
 
 					if err != nil {
-					   rsc.Close()
+						rsc.Close()
 						logger.Error("Failed to apply filters", "error", err)
 						return fmt.Errorf("Failed to apply query filters to %s, %w", f.Name, err)
 					}
@@ -279,7 +279,7 @@ func (it *GitIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 					_, err = rsc.Seek(0, 0)
 
 					if err != nil {
-					       rsc.Close()
+						rsc.Close()
 						logger.Error("Failed to rewind filehandler", "error", err)
 						return fmt.Errorf("Failed to reset filehandle for %s, %w", f.Name, err)
 					}
@@ -287,17 +287,16 @@ func (it *GitIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 
 				rec := iterate.NewRecord(f.Name, rsc)
 
-				if !yield(rec, nil){
-				   return nil
-				}
+				yield(rec, nil)
+				return nil
 			})
 
 			if err != nil {
 				logger.Error("Failed to iterate tree", "error", err)
-				return fmt.Errorf("Failed to iterate through tree, %w", err)
+				yield(nil, err)
+				return
 			}
 
-			return nil
-		)
+		}
 	}
 }
