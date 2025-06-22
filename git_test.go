@@ -2,31 +2,54 @@ package git
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"testing"
 
-	"github.com/whosonfirst/go-whosonfirst-iterate/v2/iterator"
+	"github.com/whosonfirst/go-whosonfirst-iterate/v3"
 )
 
 func TestGitIterator(t *testing.T) {
 
 	ctx := context.Background()
 
-	iter_cb := func(ctx context.Context, path string, r io.ReadSeeker, args ...interface{}) error {
-		fmt.Println(path)
-		return nil
-	}
-
-	iter, err := iterator.NewIterator(ctx, "git:///tmp", iter_cb)
+	it, err := iterate.NewIterator(ctx, "git:///tmp")
 
 	if err != nil {
 		t.Fatalf("Failed to create iterator, %v", err)
 	}
 
-	err = iter.IterateURIs(ctx, "https://github.com/sfomuseum-data/sfomuseum-data-maps.git")
+	iter_uri := "https://github.com/sfomuseum-data/sfomuseum-data-maps.git"
+	
+	for rec, err := range it.Iterate(ctx, iter_uri) {
 
-	if err != nil {
-		t.Fatalf("Failed to iterate URIs, %v", err)
+		if err != nil {
+			t.Fatalf("Failed to walk '%s', %v", iter_uri, err)
+			break
+		}
+
+		_, err = io.ReadAll(rec.Body)
+
+		if err != nil {
+			t.Fatalf("Failed to read body for %s, %v", rec.Path, err)
+		}
+
+		_, err = rec.Body.Seek(0, 0)
+
+		if err != nil {
+			t.Fatalf("Failed to rewind body for %s, %v", rec.Path, err)
+		}
+
+		_, err = io.ReadAll(rec.Body)
+
+		if err != nil {
+			t.Fatalf("Failed second read body for %s, %v", rec.Path, err)
+		}
+	}
+
+	seen := it.Seen()
+	expected := int64(43)
+
+	if seen != expected {
+		t.Fatalf("Unexpected record count. Got %d but expected %d", seen, expected)
 	}
 }
