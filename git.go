@@ -39,9 +39,9 @@ type GitIterator struct {
 	branch string
 	// Limit fetching to the specified number of commits.
 	depth int
-	// ...
+	// The count of documents that have been processed so far.
 	seen int64
-	// ...
+	// Boolean value indicating whether records are still being iterated.
 	iterating *atomic.Bool
 }
 
@@ -114,8 +114,7 @@ func NewGitIterator(ctx context.Context, uri string) (iterate.Iterator, error) {
 	return em, nil
 }
 
-// Iterate() walks (crawls) the Git repository identified by 'uri' and for each file (not excluded by any filters specified
-// when `idx` was created) invokes 'index_cb'.
+// Iterate will return an `iter.Seq2[*Record, error]` for each record encountered in 'uris'.
 func (it *GitIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*iterate.Record, error] {
 
 	return func(yield func(rec *iterate.Record, err error) bool) {
@@ -299,4 +298,14 @@ func (it *GitIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 
 		}
 	}
+}
+
+// Seen() returns the total number of records processed so far.
+func (it *GitIterator) Seen() int64 {
+	return atomic.LoadInt64(&it.seen)
+}
+
+// IsIterating() returns a boolean value indicating whether 'it' is still processing documents.
+func (it *GitIterator) IsIterating() bool {
+	return it.iterating.Load()
 }
