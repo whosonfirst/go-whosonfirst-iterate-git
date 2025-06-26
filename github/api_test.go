@@ -44,8 +44,6 @@ func TestGitIterator(t *testing.T) {
 		t.Fatalf("Failed to create iterator, %v", err)
 	}
 
-	defer it.Close()
-
 	it_path := "data"
 
 	for rec, err := range it.Iterate(ctx, it_path) {
@@ -82,5 +80,11 @@ func TestGitIterator(t *testing.T) {
 
 	if seen != expected {
 		t.Fatalf("Unexpected record count. Got %d but expected %d", seen, expected)
+	}
+
+	err = it.Close()
+
+	if err != nil {
+		t.Fatalf("Failed to close iterator, %v", err)
 	}
 }

@@ -24,8 +24,6 @@ func TestIterateOrganization(t *testing.T) {
 		t.Fatalf("Failed to create iterator, %v", err)
 	}
 
-	defer it.Close()
-
 	for rec, err := range it.Iterate(ctx, "sfomuseum-data://?prefix=sfomuseum-data-map") {
 
 		if err != nil {
@@ -59,5 +57,11 @@ func TestIterateOrganization(t *testing.T) {
 
 	if count != expected {
 		t.Fatalf("Unexpected %d count but got: %d", expected, count)
+	}
+
+	err = it.Close()
+
+	if err != nil {
+		t.Fatalf("Failed to close iterator, %v", err)
 	}
 }
