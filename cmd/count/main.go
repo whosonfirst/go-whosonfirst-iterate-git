@@ -5,6 +5,7 @@ import (
 	"log"
 
 	_ "github.com/whosonfirst/go-whosonfirst-iterate-git/v3"
+	_ "github.com/whosonfirst/go-whosonfirst-iterate-git/v3/github"
 
 	"github.com/whosonfirst/go-whosonfirst-iterate/v3/app/count"
 )

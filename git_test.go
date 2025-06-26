@@ -19,7 +19,7 @@ func TestGitIterator(t *testing.T) {
 	}
 
 	iter_uri := "https://github.com/sfomuseum-data/sfomuseum-data-maps.git"
-	
+
 	for rec, err := range it.Iterate(ctx, iter_uri) {
 
 		if err != nil {

@@ -101,6 +101,70 @@ Where `{PATH}` is an optional path on disk where a repository will be clone to (
 | `preserve` | boolean | no | A boolean value indicating whether a Git repository (cloned to disk) should not be removed after processing. Default is false. |
 | `depth` | int | no | An integer value indicating the number of commits to fetch. Default is 1. |
 
+### githubapi://
+
+```
+githubapi://{GITHUB_ORGANIZATION}/{GITHUB_REPO}?{PARAMETERS}
+```
+
+Iterate through all the files in a specific GitHub respository using the GitHub API.
+
+## Query parameters
+
+In addition to the [default go-whosonfirst-iterate query parameters](https://github.com/whosonfirst/go-whosonfirst-iterate#query-parameters) the following query parameters are supported:
+
+| Name | Value | Required | Notes
+| --- | --- | --- | --- |
+| access_token | String | Yes | A valid [GitHub API access token](https://docs.github.com/en/rest/overview/other-authentication-methods) |
+| branch | String | No | The branch to use when iterating the repository contents |
+| concurrent | Bool | No | If true iterate through documents concurrently. There is still a throttle on the number of API requests per second but this can speed things up significantly with the risk that you will still trigger GitHub API limits. |
+
+_This iterator requires importing `github.com/whosonfirst/go-whosonfirst-iterate/v3/github`._
+
+### githuborganization://
+
+```
+githuborganization://?{PARAMETERS}
+```
+
+Iterate through all the files in one or more GitHub respositories for an organization. The list of respositories is derived using the GitHub API but, as of this writing, fetching the respository files to iterate over is done using the [whosonfirst/go-whosonfirst-iterate-git/v3](https://github.com/whosonfirst/go-whosonfirst-iterate-git) package and plain-vanilla `git clone` operations rather than (or in addition to) the GitHub API.
+
+In addition to the [default go-whosonfirst-iterate query parameters](https://github.com/whosonfirst/go-whosonfirst-iterate#query-parameters) the following query parameters are supported:
+
+| Name | Value | Required | Notes
+| --- | --- | --- | --- |
+| dedupe | Boolean | No | Skip Who's On First records (IDs) which may occur in multiple repositories. |
+
+The URIs passed to this iterator's `Iterate` method should be recognized `whosonfirst/go-whosonfirst-iterate-git URIs.
+
+_This iterator requires importing `github.com/whosonfirst/go-whosonfirst-iterate/v3/github`._
+
+## Filters
+
+### QueryFilters
+
+You can also specify inline queries by appending one or more `include` or `exclude` parameters to a `emitter.Emitter` URI, where the value is a string in the format of:
+
+```
+{PATH}={REGULAR EXPRESSION}
+```
+
+Paths follow the dot notation syntax used by the [tidwall/gjson](https://github.com/tidwall/gjson) package and regular expressions are any valid [Go language regular expression](https://golang.org/pkg/regexp/). Successful path lookups will be treated as a list of candidates and each candidate's string value will be tested against the regular expression's [MatchString](https://golang.org/pkg/regexp/#Regexp.MatchString) method.
+
+For example:
+
+```
+repo://?include=properties.wof:placetype=region
+```
+
+You can pass multiple query parameters. For example:
+
+```
+repo://?include=properties.wof:placetype=region&include=properties.wof:name=(?i)new.*
+```
+
+The default query mode is to ensure that all queries match but you can also specify that only one or more queries need to match by appending a `include_mode` or `exclude_mode` parameter where the value is either "ANY" or "ALL".
+
 ## Tools
 
 ```
@@ -121,7 +185,9 @@ Usage:
 Valid options are:
 
   -iterator-uri string
-    	A valid whosonfirst/go-whosonfirst-iterate/v3.Iterator URI. Supported iterator URI schemes are: cwd://,directory://,featurecollection://,file://,filelist://,geojsonl://,git://,null://,repo:// (default "repo://")
+    	A valid whosonfirst/go-whosonfirst-iterate/v3.Iterator URI. Supported iterator URI schemes are: cwd://,directory://,featurecollection://,file://,filelist://,geojsonl://,git://,githubapi://,githuborg://,null://,repo:// (default "repo://")
+  -verbose
+    	Enable verbose (debug) logging.
 ```
 
 For example:
@@ -166,13 +232,15 @@ Valid options are:
   -geojson
     	Emit features as a well-formed GeoJSON FeatureCollection record.
   -iterator-uri string
-    	A valid whosonfirst/go-whosonfirst-iterate/v3.Iterator URI. Supported iterator URI schemes are: cwd://,directory://,featurecollection://,file://,filelist://,geojsonl://,git://,null://,repo:// (default "repo://")
+    	A valid whosonfirst/go-whosonfirst-iterate/v3.Iterator URI. Supported iterator URI schemes are: cwd://,directory://,featurecollection://,file://,filelist://,geojsonl://,git://,githubapi://,githuborg://,null://,repo:// (default "repo://")
   -json
     	Emit features as a well-formed JSON array.
   -null
     	Publish features to /dev/null
   -stdout
     	Publish features to STDOUT. (default true)
+  -verbose
+    	Enable verbose (debug) logging.
 ```
 
 For example:
