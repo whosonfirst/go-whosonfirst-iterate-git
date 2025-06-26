@@ -44,6 +44,8 @@ func TestGitIterator(t *testing.T) {
 		t.Fatalf("Failed to create iterator, %v", err)
 	}
 
+	defer it.Close()
+
 	it_path := "data"
 
 	for rec, err := range it.Iterate(ctx, it_path) {

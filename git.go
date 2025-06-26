@@ -309,3 +309,8 @@ func (it *GitIterator) Seen() int64 {
 func (it *GitIterator) IsIterating() bool {
 	return it.iterating.Load()
 }
+
+// Close performs any implementation specific tasks before terminating the iterator.
+func (it *GitIterator) Close() error {
+	return nil
+}

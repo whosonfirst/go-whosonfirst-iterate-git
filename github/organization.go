@@ -288,3 +288,8 @@ func (it *OrganizationIterator) Seen() int64 {
 func (it *OrganizationIterator) IsIterating() bool {
 	return it.iterating.Load()
 }
+
+// Close performs any implementation specific tasks before terminating the iterator.
+func (it *OrganizationIterator) Close() error {
+	return nil
+}

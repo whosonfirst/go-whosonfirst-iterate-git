@@ -18,6 +18,8 @@ func TestGitIterator(t *testing.T) {
 		t.Fatalf("Failed to create iterator, %v", err)
 	}
 
+	defer it.Close()
+
 	iter_uri := "https://github.com/sfomuseum-data/sfomuseum-data-maps.git"
 
 	for rec, err := range it.Iterate(ctx, iter_uri) {

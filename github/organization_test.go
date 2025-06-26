@@ -18,13 +18,15 @@ func TestIterateOrganization(t *testing.T) {
 	expected := 43
 	count := 0
 
-	iter, err := iterate.NewIterator(ctx, iter_uri)
+	it, err := iterate.NewIterator(ctx, iter_uri)
 
 	if err != nil {
 		t.Fatalf("Failed to create iterator, %v", err)
 	}
 
-	for rec, err := range iter.Iterate(ctx, "sfomuseum-data://?prefix=sfomuseum-data-map") {
+	defer it.Close()
+
+	for rec, err := range it.Iterate(ctx, "sfomuseum-data://?prefix=sfomuseum-data-map") {
 
 		if err != nil {
 			t.Fatalf("Failed to iterate organization, %v", err)

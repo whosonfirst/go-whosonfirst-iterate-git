@@ -219,6 +219,11 @@ func (it *GitHubAPIIterator) IsIterating() bool {
 	return it.iterating.Load()
 }
 
+// Close performs any implementation specific tasks before terminating the iterator.
+func (it *GitHubAPIIterator) Close() error {
+	return nil
+}
+
 func (it *GitHubAPIIterator) walkDirectoryContents(ctx context.Context, contents []*github.RepositoryContent) iter.Seq2[*iterate.Record, error] {
 
 	return func(yield func(rec *iterate.Record, err error) bool) {
