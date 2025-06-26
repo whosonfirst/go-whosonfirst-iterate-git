@@ -4,7 +4,7 @@ Go package implementing `whosonfirst/go-whosonfirst-iterate/v3.Iterator` functio
 
 ## Documentation
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/whosonfirst/go-whosonfirst-iterate-git/v3.svg)](https://pkg.go.dev/github.com/whosonfirst/go-whosonfirst-iterate-git/v3)
+[![Go Reference](https://pkg.go.dev/badge/github.com/whosonfirst/go-whosonfirst-iterate-git.svg)](https://pkg.go.dev/github.com/whosonfirst/go-whosonfirst-iterate-git/v3)
 
 ## Example
 
@@ -17,7 +17,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/whosonfirst/go-whosonfirst-iterate-git/v3"
+	_ "github.com/whosonfirst/go-whosonfirst-iterate-git/v3"
 	"github.com/whosonfirst/go-whosonfirst-iterate/v3"
 )
 
@@ -33,6 +33,7 @@ func main() {
 	paths := flag.Args()
 	
 	for rec, _ := range iter.Iterate(ctx, paths...) {
+		defer rec.Body.Close()
 		log.Printf("Indexing %s\n", rec.Path)
 	}
 }
