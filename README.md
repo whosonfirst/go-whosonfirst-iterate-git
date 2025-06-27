@@ -1,70 +1,90 @@
 # go-whosonfirst-iterate-git
 
-Go package implementing go-whosonfirst-iterate/emitter functionality for Git repositories.
+Go package implementing `whosonfirst/go-whosonfirst-iterate/v3.Iterator` functionality for Git repositories.
 
 ## Documentation
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/whosonfirst/go-whosonfirst-iterate-git.svg)](https://pkg.go.dev/github.com/whosonfirst/go-whosonfirst-iterate-git)
+[![Go Reference](https://pkg.go.dev/badge/github.com/whosonfirst/go-whosonfirst-iterate-git.svg)](https://pkg.go.dev/github.com/whosonfirst/go-whosonfirst-iterate-git/v3)
 
 ## Example
 
-```
-package main
+Version 3.x of this package introduce major, backward-incompatible changes from earlier releases. That said, migragting from version 2.x to 3.x should be relatively straightforward as a the _basic_ concepts are still the same but (hopefully) simplified. Where version 2.x relied on defining a custom callback for looping over records version 3.x use Go's [iter.Seq2](https://pkg.go.dev/iter) iterator construct to yield records as they are encountered.
 
+
+```
 import (
 	"context"
 	"flag"
-	"fmt"
-	"io"
 	"log"
-	"os"
-	"strings"
-	"sync/atomic"
 
-	_ "github.com/whosonfirst/go-whosonfirst-iterate-git/v2"
-	
-	"github.com/whosonfirst/go-whosonfirst-iterate/v2/emitter"
-	"github.com/whosonfirst/go-whosonfirst-iterate/v2/iterator"
+	_ "github.com/whosonfirst/go-whosonfirst-iterate-git/v3"
+	"github.com/whosonfirst/go-whosonfirst-iterate/v3"
 )
 
 func main() {
 
-	valid_schemes := strings.Join(emitter.Schemes(), ",")
-	emitter_desc := fmt.Sprintf("A valid whosonfirst/go-whosonfirst-iterate/v2 URI. Supported emitter URI schemes are: %s", valid_schemes)
+     	var iterator_uri string
 
-	var emitter_uri = flag.String("emitter-uri", "git://", emitter_desc)
+	flag.StringVar(&iterator_uri, "iterator-uri", "git:///tmp". "A registered whosonfirst/go-whosonfirst-iterate/v3.Iterator URI.")
+	ctx := context.Background()
+	
+	iter, _:= iterate.NewIterator(ctx, iterator_uri)
 
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Count files in one or more whosonfirst/go-whosonfirst-iterate/v2 sources.\n")
-		fmt.Fprintf(os.Stderr, "Usage:\n\t %s [options] uri(N) uri(N)\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "Valid options are:\n\n")
-		flag.PrintDefaults()
+	paths := flag.Args()
+	
+	for rec, _ := range iter.Iterate(ctx, paths...) {
+		defer rec.Body.Close()
+		log.Printf("Indexing %s\n", rec.Path)
 	}
+}
+```
 
-	flag.Parse()
+_Error handling removed for the sake of brevity._
 
-	var count int64
-	count = 0
+### Version 2.x (the old way)
 
-	emitter_cb := func(ctx context.Context, path string, fh io.ReadSeeker, args ...interface{}) error {
-		atomic.AddInt64(&count, 1)
-		return nil
-	}
+This is how you would do the same thing using the older version 2.x code:
+
+```
+import (
+       "context"
+       "flag"
+       "io"
+       "log"
+
+       _ "github.com/whosonfirst/go-whosonfirst-iterate-github/v2"
+       
+       "github.com/whosonfirst/go-whosonfirst-iterate/emitter/v2"       
+       "github.com/whosonfirst/go-whosonfirst-iterate/indexer/v2"
+)
+
+func main() {
+
+	emitter_uri := flag.String("emitter-uri", "githubapi://", "A valid whosonfirst/go-whosonfirst-iterate/emitter URI")
+	
+     	flag.Parse()
 
 	ctx := context.Background()
 
-	iter, _ := iterator.NewIterator(ctx, *emitter_uri, emitter_cb)
+	emitter_cb := func(ctx context.Context, path string, fh io.ReadSeeker, args ...interface{}) error {
+		log.Printf("Indexing %s\n", path)
+		return nil
+	}
+
+	iter, _ := iterator.NewIterator(ctx, *emitter_uri, cb)
 
 	uris := flag.Args()
 	iter.IterateURIs(ctx, uris...)
-
-	log.Printf("Counted %d records (saw %d records)\n", count, iter.Seen)
 }
 ```
 
 _Error handling omitted for the sake of brevity._
 
-## Emitter URIs
+## Iterators
+
+This package exports the following iterators:
+
+### git://
 
 ```
 git://{PATH}?{PARAMETERS}
@@ -81,6 +101,70 @@ Where `{PATH}` is an optional path on disk where a repository will be clone to (
 | `preserve` | boolean | no | A boolean value indicating whether a Git repository (cloned to disk) should not be removed after processing. Default is false. |
 | `depth` | int | no | An integer value indicating the number of commits to fetch. Default is 1. |
 
+### githubapi://
+
+```
+githubapi://{GITHUB_ORGANIZATION}/{GITHUB_REPO}?{PARAMETERS}
+```
+
+Iterate through all the files in a specific GitHub respository using the GitHub API.
+
+## Query parameters
+
+In addition to the [default go-whosonfirst-iterate query parameters](https://github.com/whosonfirst/go-whosonfirst-iterate#query-parameters) the following query parameters are supported:
+
+| Name | Value | Required | Notes
+| --- | --- | --- | --- |
+| access_token | String | Yes | A valid [GitHub API access token](https://docs.github.com/en/rest/overview/other-authentication-methods) |
+| branch | String | No | The branch to use when iterating the repository contents |
+| concurrent | Bool | No | If true iterate through documents concurrently. There is still a throttle on the number of API requests per second but this can speed things up significantly with the risk that you will still trigger GitHub API limits. |
+
+_This iterator requires importing `github.com/whosonfirst/go-whosonfirst-iterate/v3/github`._
+
+### githuborganization://
+
+```
+githuborganization://?{PARAMETERS}
+```
+
+Iterate through all the files in one or more GitHub respositories for an organization. The list of respositories is derived using the GitHub API but, as of this writing, fetching the respository files to iterate over is done using the [whosonfirst/go-whosonfirst-iterate-git/v3](https://github.com/whosonfirst/go-whosonfirst-iterate-git) package and plain-vanilla `git clone` operations rather than (or in addition to) the GitHub API.
+
+In addition to the [default go-whosonfirst-iterate query parameters](https://github.com/whosonfirst/go-whosonfirst-iterate#query-parameters) the following query parameters are supported:
+
+| Name | Value | Required | Notes
+| --- | --- | --- | --- |
+| dedupe | Boolean | No | Skip Who's On First records (IDs) which may occur in multiple repositories. |
+
+The URIs passed to this iterator's `Iterate` method should be recognized `whosonfirst/go-whosonfirst-iterate-git URIs.
+
+_This iterator requires importing `github.com/whosonfirst/go-whosonfirst-iterate/v3/github`._
+
+## Filters
+
+### QueryFilters
+
+You can also specify inline queries by appending one or more `include` or `exclude` parameters to a `emitter.Emitter` URI, where the value is a string in the format of:
+
+```
+{PATH}={REGULAR EXPRESSION}
+```
+
+Paths follow the dot notation syntax used by the [tidwall/gjson](https://github.com/tidwall/gjson) package and regular expressions are any valid [Go language regular expression](https://golang.org/pkg/regexp/). Successful path lookups will be treated as a list of candidates and each candidate's string value will be tested against the regular expression's [MatchString](https://golang.org/pkg/regexp/#Regexp.MatchString) method.
+
+For example:
+
+```
+repo://?include=properties.wof:placetype=region
+```
+
+You can pass multiple query parameters. For example:
+
+```
+repo://?include=properties.wof:placetype=region&include=properties.wof:name=(?i)new.*
+```
+
+The default query mode is to ensure that all queries match but you can also specify that only one or more queries need to match by appending a `include_mode` or `exclude_mode` parameter where the value is either "ANY" or "ALL".
+
 ## Tools
 
 ```
@@ -95,78 +179,68 @@ Count files in one or more whosonfirst/go-whosonfirst-iterate/emitter sources.
 
 ```
 $> ./bin/count -h
-Count files in one or more whosonfirst/go-whosonfirst-iterate/emitter sources.
+Count files in one or more whosonfirst/go-whosonfirst-iterate/v3.Iterator sources.
 Usage:
 	 ./bin/count [options] uri(N) uri(N)
 Valid options are:
 
-  -emitter-uri string
-    	A valid whosonfirst/go-whosonfirst-iterate/emitter URI. Supported emitter URI schemes are: directory://,featurecollection://,file://,filelist://,geojsonl://,git://,repo:// (default "git://")
+  -iterator-uri string
+    	A valid whosonfirst/go-whosonfirst-iterate/v3.Iterator URI. Supported iterator URI schemes are: cwd://,directory://,featurecollection://,file://,filelist://,geojsonl://,git://,githubapi://,githuborg://,null://,repo:// (default "repo://")
+  -verbose
+    	Enable verbose (debug) logging.
 ```
 
-```
-$> ./bin/count \
-	https://github.com/sfomuseum-data/sfomuseum-data-architecture.git
-
-2021/02/17 15:54:32 time to index paths (1) 26.076332877s
-2021/02/17 15:54:32 Counted 857 records (indexed 857 records)
-```
-
+For example:
 
 ```
-$> ./bin/count \
-	-emitter-uri 'git://?include=properties.mz:is_current=1&include=properties.sfomuseum:placetype=gate' \
-	https://github.com/sfomuseum-data/sfomuseum-data-architecture.git
-
-2021/02/17 16:00:17 time to index paths (1) 24.470490474s
-2021/02/17 16:00:17 Counted 120 records (indexed 120 records)
+$> ./bin/count -iterator-uri git:///tmp https://github.com/sfomuseum-data/sfomuseum-data-architecture.git
+2025/06/24 05:27:43 INFO Counted records count=2019 time=7.248527917s
 ```
 
-By default `go-whosonfirst-iterate-git` clones Git repositories in to memory. If your emitter URI contains a path then repositories will be cloned in that path:
-
-```
-$> bin/count \
-	-emitter-uri 'git:///tmp/data' \
-	git@github.com:whosonfirst-data/whosonfirst-data-admin-is.git
-
-2021/02/17 15:56:54 time to index paths (1) 3.742559429s
-2021/02/17 15:56:54 Counted 436 records (indexed 436 records)
-```
+By default `go-whosonfirst-iterate-git` clones Git repositories in to memory. If your iterator URI contains a path then repositories will be cloned in that path:
 
 By default repositories cloned in to a path are removed. If you want to preserve the cloned repository include a `?preserve=1` query parameter in your URI string:
 
 ```
-$> bin/count \
-	-emitter-uri 'git:///tmp/data?preserve=1' \
-	git@github.com:whosonfirst-data/whosonfirst-data-admin-is.git
+$> /bin/count -iterator-uri 'git:///tmp?preserve=1' https://github.com/sfomuseum-data/sfomuseum-data-architecture.git
+2025/06/24 05:29:22 INFO Counted records count=2019 time=4.728772811s
 
-2021/02/17 15:57:49 time to index paths (1) 3.465746865s
-2021/02/17 15:57:49 Counted 436 records (indexed 436 records)
+$> ls -al /tmp/sfomuseum-data-architecture.git 
+total 48
+drwxr-xr-x   9 asc   wheel    288 Jun 24 05:29 .
+drwxrwxrwt   5 root  wheel    160 Jun 24 05:29 ..
+drwxr-xr-x   8 asc   wheel    256 Jun 24 05:29 .git
+-rw-r--r--   1 asc   wheel     14 Jun 24 05:29 .gitignore
+drwxr-xr-x  18 asc   wheel    576 Jun 24 05:29 data
+-rw-r--r--   1 asc   wheel  10462 Jun 24 05:29 LICENSE
+-rw-r--r--   1 asc   wheel   1141 Jun 24 05:29 Makefile
+drwxr-xr-x   3 asc   wheel     96 Jun 24 05:29 qgis
+-rw-r--r--   1 asc   wheel    771 Jun 24 05:29 README.md
 ```
-
-In this example the clone repository will be store in `/tmp/data/whosonfirst-data-admin-is.git`.
 
 ### emit
 
-Publish features from one or more whosonfirst/go-whosonfirst-iterate sources.
+Emit records in one or more whosonfirst/go-whosonfirst-iterate/v3.Iterator sources as structured data.
 
 ```
-> ./bin/emit -h
-Publish features from one or more whosonfirst/go-whosonfirst-iterate/emitter sources.
+$> ./bin/emit -h
+Emit records in one or more whosonfirst/go-whosonfirst-iterate/v3.Iterator sources as structured data.
 Usage:
 	 ./bin/emit [options] uri(N) uri(N)
 Valid options are:
 
-  -emitter-uri string
-    	A valid whosonfirst/go-whosonfirst-iterate/emitter URI. Supported emitter URI schemes are: directory://,featurecollection://,file://,filelist://,geojsonl://,git://,repo:// (default "git://")
   -geojson
     	Emit features as a well-formed GeoJSON FeatureCollection record.
+  -iterator-uri string
+    	A valid whosonfirst/go-whosonfirst-iterate/v3.Iterator URI. Supported iterator URI schemes are: cwd://,directory://,featurecollection://,file://,filelist://,geojsonl://,git://,githubapi://,githuborg://,null://,repo:// (default "repo://")
   -json
     	Emit features as a well-formed JSON array.
   -null
     	Publish features to /dev/null
   -stdout
     	Publish features to STDOUT. (default true)
+  -verbose
+    	Enable verbose (debug) logging.
 ```
 
 For example:
@@ -174,24 +248,22 @@ For example:
 ```
 $> ./bin/emit \
 	-geojson \
-	-emitter-uri 'git://?include=properties.mz:is_current=1&include=properties.sfomuseum:placetype=gate' \
+	-iterator-uri 'git://?include=properties.mz:is_current=1&include=properties.sfomuseum:placetype=gate' \
 	https://github.com/sfomuseum-data/sfomuseum-data-architecture.git \
 
 | jq '.features[]["properties"]["wof:label"]'
 
-"C45 (2019)"
-"C42A (2019)"
-"C48A (2019)"
-"F77 (2019)"
-"F84D (2019)"
-"F84C (2019)"
-"F84B (2019)"
-"F70A (2019)"
-"F84A (2019)
+"B1 (2021-05-25)"
+"C10R (2021-05-25)"
+"A13R (2021-05-25)"
+"G12S (2021-05-25)"
+"G12V (2021-05-25)"
+"F15M (2021-05-25)"
+"C4U (2021-05-25)"
 ...and so on
 ```
 
 ## See also
 
 * https://github.com/whosonfirst/go-whosonfirst-iterate
-* https://godoc.org/gopkg.in/src-d/go-git.v4
+* https://github.com/go-git/go-git

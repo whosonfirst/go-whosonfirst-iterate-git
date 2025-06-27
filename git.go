@@ -3,11 +3,13 @@ package git
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	gogit "github.com/go-git/go-git/v5"
@@ -15,18 +17,18 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/whosonfirst/go-ioutil"
-	"github.com/whosonfirst/go-whosonfirst-iterate/v2/emitter"
-	"github.com/whosonfirst/go-whosonfirst-iterate/v2/filters"
+	"github.com/whosonfirst/go-whosonfirst-iterate/v3"
+	"github.com/whosonfirst/go-whosonfirst-iterate/v3/filters"
 )
 
 func init() {
 	ctx := context.Background()
-	emitter.RegisterEmitter(ctx, "git", NewGitEmitter)
+	iterate.RegisterIterator(ctx, "git", NewGitIterator)
 }
 
-// GitEmitter implements the `Emitter` interface for crawling records in a Git repository.
-type GitEmitter struct {
-	emitter.Emitter
+// GitIterator implements the `Iterator` interface for crawling records in a Git repository.
+type GitIterator struct {
+	iterate.Iterator
 	// An optional path on disk where Git respositories will be cloned.
 	target string
 	// A boolean value indicating whether a Git repository (cloned to disk) should not be removed after processing.
@@ -37,9 +39,13 @@ type GitEmitter struct {
 	branch string
 	// Limit fetching to the specified number of commits.
 	depth int
+	// The count of documents that have been processed so far.
+	seen int64
+	// Boolean value indicating whether records are still being iterated.
+	iterating *atomic.Bool
 }
 
-// NewGitEmitter() returns a new `GitEmitter` instance configured by 'uri' in the form of:
+// NewGitIterator() returns a new `GitIterator` instance configured by 'uri' in the form of:
 //
 //	git://{PATH}?{PARAMETERS}
 //
@@ -50,7 +56,7 @@ type GitEmitter struct {
 // * `?exclude_mode=` A valid `aaronland/go-json-query` query mode string for testing exclusion rules.
 // * `?preserve=` A boolean value indicating whether a Git repository (cloned to disk) should not be removed after processing.
 // * `?depth=` An integer value indicating the number of commits to fetch. Default is 1.
-func NewGitEmitter(ctx context.Context, uri string) (emitter.Emitter, error) {
+func NewGitIterator(ctx context.Context, uri string) (iterate.Iterator, error) {
 
 	u, err := url.Parse(uri)
 
@@ -58,9 +64,11 @@ func NewGitEmitter(ctx context.Context, uri string) (emitter.Emitter, error) {
 		return nil, fmt.Errorf("Failed to parse URI, %w", err)
 	}
 
-	em := &GitEmitter{
-		target: u.Path,
-		depth:  1,
+	em := &GitIterator{
+		target:    u.Path,
+		depth:     1,
+		seen:      int64(0),
+		iterating: new(atomic.Bool),
 	}
 
 	q := u.Query()
@@ -106,159 +114,203 @@ func NewGitEmitter(ctx context.Context, uri string) (emitter.Emitter, error) {
 	return em, nil
 }
 
-// WalkURI() walks (crawls) the Git repository identified by 'uri' and for each file (not excluded by any filters specified
-// when `idx` was created) invokes 'index_cb'.
-func (em *GitEmitter) WalkURI(ctx context.Context, index_cb emitter.EmitterCallbackFunc, uri string) error {
+// Iterate will return an `iter.Seq2[*Record, error]` for each record encountered in 'uris'.
+func (it *GitIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*iterate.Record, error] {
 
-	logger := slog.Default()
-	logger = logger.With("uri", uri)
-	logger = logger.With("branch", em.branch)
+	return func(yield func(rec *iterate.Record, err error) bool) {
 
-	var repo *gogit.Repository
+		it.iterating.Swap(true)
+		defer it.iterating.Swap(false)
 
-	clone_opts := &gogit.CloneOptions{
-		URL:   uri,
-		Depth: em.depth,
-	}
+		for _, uri := range uris {
 
-	if em.branch != "" {
-		br := plumbing.NewBranchReferenceName(em.branch)
-		clone_opts.ReferenceName = br
-	}
+			logger := slog.Default()
+			logger = logger.With("uri", uri)
+			logger = logger.With("branch", it.branch)
 
-	logger = logger.With("target", em.target)
+			var repo *gogit.Repository
 
-	t1 := time.Now()
-
-	switch em.target {
-	case "":
-
-		logger.Debug("Clone in to memory")
-
-		r, err := gogit.Clone(memory.NewStorage(), nil, clone_opts)
-
-		if err != nil {
-			logger.Error("Failed to clone repo", "error", err)
-			return fmt.Errorf("Failed to clone repository, %w", err)
-		}
-
-		repo = r
-	default:
-
-		fname := filepath.Base(uri)
-		path := filepath.Join(em.target, fname)
-
-		logger.Debug("Clone to path", "path", path)
-
-		r, err := gogit.PlainClone(path, false, clone_opts)
-
-		if err != nil {
-			logger.Error("Failed to clone repo", "error", err)
-			return fmt.Errorf("Failed to clone repository, %w", err)
-		}
-
-		if !em.preserve {
-			defer os.RemoveAll(path)
-		}
-
-		repo = r
-	}
-
-	logger.Debug("Time to clone repo", "time", time.Since(t1))
-
-	ref, err := repo.Head()
-
-	if err != nil {
-		logger.Error("Failed to derive HEAD", "error", err)
-		return fmt.Errorf("Failed to derive head for repository, %w", err)
-	}
-
-	logger = logger.With("ref", ref.Hash())
-
-	commit, err := repo.CommitObject(ref.Hash())
-
-	if err != nil {
-		logger.Error("Failed to derive commit object", "error", err)
-		return fmt.Errorf("Failed to derive object for ref hash, %w", err)
-	}
-
-	tree, err := commit.Tree()
-
-	if err != nil {
-		logger.Error("Failed to derive commit tree", "error", err)
-		return fmt.Errorf("Failed to derive commit tree, %w", err)
-	}
-
-	err = tree.Files().ForEach(func(f *object.File) error {
-
-		logger := slog.Default()
-		logger = logger.With("uri", uri)
-		logger = logger.With("path", f.Name)
-		logger = logger.With("branch", em.branch)
-		logger = logger.With("ref", ref.Hash())
-
-		switch filepath.Ext(f.Name) {
-		case ".geojson":
-			// continue
-		default:
-			// logger.Debug("Not a .geojson file, skipping.")
-			return nil
-		}
-
-		r, err := f.Reader()
-
-		if err != nil {
-			logger.Error("Failed to derive reader", "error", err)
-			return fmt.Errorf("Failed to derive reader for %s, %w", f.Name, err)
-		}
-
-		defer r.Close()
-
-		fh, err := ioutil.NewReadSeekCloser(r)
-
-		if err != nil {
-			logger.Error("Failed to create ReadSeekCloser", "error", err)
-			return fmt.Errorf("Failed to create ReadSeekCloser for %s, %w", f.Name, err)
-		}
-
-		defer fh.Close()
-
-		if em.filters != nil {
-
-			ok, err := em.filters.Apply(ctx, fh)
-
-			if err != nil {
-				logger.Error("Failed to apply filters", "error", err)
-				return fmt.Errorf("Failed to apply query filters to %s, %w", f.Name, err)
+			clone_opts := &gogit.CloneOptions{
+				URL:   uri,
+				Depth: it.depth,
 			}
 
-			if !ok {
-				// logger.Debug("Skipping because filters not true")
+			if it.branch != "" {
+				br := plumbing.NewBranchReferenceName(it.branch)
+				clone_opts.ReferenceName = br
+			}
+
+			logger = logger.With("target", it.target)
+
+			t1 := time.Now()
+
+			switch it.target {
+			case "":
+
+				logger.Debug("Clone in to memory")
+
+				r, err := gogit.Clone(memory.NewStorage(), nil, clone_opts)
+
+				if err != nil {
+					logger.Error("Failed to clone repo", "error", err)
+
+					if !yield(nil, err) {
+						return
+					}
+
+					continue
+				}
+
+				repo = r
+			default:
+
+				fname := filepath.Base(uri)
+				path := filepath.Join(it.target, fname)
+
+				logger.Debug("Clone to path", "path", path)
+
+				r, err := gogit.PlainClone(path, false, clone_opts)
+
+				if err != nil {
+					logger.Error("Failed to clone repo", "error", err)
+
+					if !yield(nil, err) {
+						return
+					}
+
+					continue
+				}
+
+				if !it.preserve {
+					defer os.RemoveAll(path)
+				}
+
+				repo = r
+			}
+
+			logger.Debug("Time to clone repo", "time", time.Since(t1))
+
+			ref, err := repo.Head()
+
+			if err != nil {
+				logger.Error("Failed to derive HEAD", "error", err)
+
+				if !yield(nil, err) {
+					return
+				}
+
+				continue
+			}
+
+			logger = logger.With("ref", ref.Hash())
+
+			commit, err := repo.CommitObject(ref.Hash())
+
+			if err != nil {
+				logger.Error("Failed to derive commit object", "error", err)
+
+				if !yield(nil, err) {
+					return
+				}
+
+				continue
+			}
+
+			tree, err := commit.Tree()
+
+			if err != nil {
+				logger.Error("Failed to derive commit tree", "error", err)
+
+				if !yield(nil, err) {
+					return
+				}
+
+				continue
+			}
+
+			err = tree.Files().ForEach(func(f *object.File) error {
+
+				logger := slog.Default()
+				logger = logger.With("uri", uri)
+				logger = logger.With("path", f.Name)
+				logger = logger.With("branch", it.branch)
+				logger = logger.With("ref", ref.Hash())
+
+				switch filepath.Ext(f.Name) {
+				case ".geojson":
+					// continue
+				default:
+					// logger.Debug("Not a .geojson file, skipping.")
+					return nil
+				}
+
+				r, err := f.Reader()
+
+				if err != nil {
+					logger.Error("Failed to derive reader", "error", err)
+					return fmt.Errorf("Failed to derive reader for %s, %w", f.Name, err)
+				}
+
+				rsc, err := ioutil.NewReadSeekCloser(r)
+
+				if err != nil {
+					r.Close()
+					logger.Error("Failed to create ReadSeekCloser", "error", err)
+					return fmt.Errorf("Failed to create ReadSeekCloser for %s, %w", f.Name, err)
+				}
+
+				if it.filters != nil {
+
+					ok, err := it.filters.Apply(ctx, rsc)
+
+					if err != nil {
+						rsc.Close()
+						logger.Error("Failed to apply filters", "error", err)
+						return fmt.Errorf("Failed to apply query filters to %s, %w", f.Name, err)
+					}
+
+					if !ok {
+						// logger.Debug("Skipping because filters not true")
+						rsc.Close()
+						return nil
+					}
+
+					_, err = rsc.Seek(0, 0)
+
+					if err != nil {
+						rsc.Close()
+						logger.Error("Failed to rewind filehandler", "error", err)
+						return fmt.Errorf("Failed to reset filehandle for %s, %w", f.Name, err)
+					}
+				}
+
+				rec := iterate.NewRecord(f.Name, rsc)
+
+				yield(rec, nil)
 				return nil
-			}
-
-			_, err = fh.Seek(0, 0)
+			})
 
 			if err != nil {
-				logger.Error("Failed to rewind filehandler", "error", err)
-				return fmt.Errorf("Failed to reset filehandle for %s, %w", f.Name, err)
+				logger.Error("Failed to iterate tree", "error", err)
+				yield(nil, err)
+				return
 			}
+
 		}
-
-		err = index_cb(ctx, f.Name, fh)
-
-		if err != nil {
-			logger.Error("Failed to index record", "error", err)
-			return fmt.Errorf("Failed to index %s, %w", f.Name, err)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		logger.Error("Failed to iterate tree", "error", err)
-		return fmt.Errorf("Failed to iterate through tree, %w", err)
 	}
+}
 
+// Seen() returns the total number of records processed so far.
+func (it *GitIterator) Seen() int64 {
+	return atomic.LoadInt64(&it.seen)
+}
+
+// IsIterating() returns a boolean value indicating whether 'it' is still processing documents.
+func (it *GitIterator) IsIterating() bool {
+	return it.iterating.Load()
+}
+
+// Close performs any implementation specific tasks before terminating the iterator.
+func (it *GitIterator) Close() error {
 	return nil
 }
