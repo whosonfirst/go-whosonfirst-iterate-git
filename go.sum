@@ -86,8 +86,8 @@ github.com/whosonfirst/go-ioutil v1.0.2 h1:+GJPfa42OFn5A+5yJSc5jQTQIkNV3/MhYyg4p
 github.com/whosonfirst/go-ioutil v1.0.2/go.mod h1:2dS1vWdAIkiHDvDF8fYyjv6k2NISmwaIjJJeEDBEdvg=
 github.com/whosonfirst/go-whosonfirst-github v0.9.2 h1:wFif+jZqCCD8CRmYiVyWgFvDTnZIMfMEe9v5toD5QYk=
 github.com/whosonfirst/go-whosonfirst-github v0.9.2/go.mod h1:wvJ+r5Ig+WBupahuCY49y3Ra9OOBdMCPx4Y2UtWx/FU=
-github.com/whosonfirst/go-whosonfirst-iterate/v3 v3.1.0 h1:NE5HkwKuHqO+clCGNP5QY2pxblg02mGFeX8lFQ0K5Ho=
-github.com/whosonfirst/go-whosonfirst-iterate/v3 v3.1.0/go.mod h1:8L1KzWtOnRue6Dvc9BI6hy4twHd6zu9XgKn8TlJ4d7g=
+github.com/whosonfirst/go-whosonfirst-iterate/v3 v3.1.1 h1:Z6dyXcytB9Gk6qoEH29vE2BtGhfR9LXfuwbZmTlJZ3s=
+github.com/whosonfirst/go-whosonfirst-iterate/v3 v3.1.1/go.mod h1:f3LSDo5q+wiXa5Z76ut6nxoYT//FV2b+G4loENpZe8A=
 github.com/whosonfirst/go-whosonfirst-sources v0.1.0 h1:JuKLa6KWke22jBfJ1pM9WQHoz1/3pbDv2C+aR+THPPQ=
 github.com/whosonfirst/go-whosonfirst-sources v0.1.0/go.mod h1:EUMHyGzUmqPPxlMmOp+28BFeoBdxxE0HCKRd67lkqGM=
 github.com/whosonfirst/go-whosonfirst-uri v1.3.0 h1:LYOVLqP9rWQxauYVkdw65j5LZxEi8OK0GHh/qCEpX4g=
