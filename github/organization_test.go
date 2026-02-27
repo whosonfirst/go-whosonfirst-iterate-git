@@ -15,7 +15,7 @@ func TestIterateOrganization(t *testing.T) {
 
 	iter_uri := "githuborg://"
 
-	expected := 43
+	expected := 45
 	count := 0
 
 	it, err := iterate.NewIterator(ctx, iter_uri)
